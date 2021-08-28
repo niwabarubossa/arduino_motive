@@ -17,8 +17,10 @@ int main(int argc, char *argv[])
   char buf[255]; // バッファ
   int fd;             // ファイルディスクリプタ
   struct termios tio; // シリアル通信設定
-  int baudRate = B38400;
+  int baudRate = B38400; //ボーレート（bpsとは厳密には異なるが，シリアル通信では1回の復調で1bit）
   int i,len,ret,size;
+
+  clock_t start = 0, end = 0;
 
   // fd = open(SERIAL_PORT, O_RDWR | O_NDELAY | O_NOCTTY); // デバイスをオープンする
   fd = open(SERIAL_PORT, O_RDWR);
@@ -49,15 +51,20 @@ int main(int argc, char *argv[])
     len = read(fd, buf, sizeof(buf));
     if (0 < len)
     {
+      printf("start\n");
+      start = clock();
       for (i = 0; i < len; i++)
       {
-        // printf("%02X", buf[i]);
-        printf("%c", buf[i]);
+        // ここで更新
+        printf("%c", buf[i]);// printf("%02X", buf[i]);
       }
-      printf("no data\n");
+      printf("\nno data\n");
+      end = clock();
+      printf ("%0.8f sec\n",((float) end - start)/CLOCKS_PER_SEC);
     }
-    // エコーバック
-    // write(fd, buf, len);
+    end = clock();
+
+    // write(fd, buf, len);　// エコーバック
   }
 
   close(fd); // デバイスのクローズ
