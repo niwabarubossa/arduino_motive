@@ -8,8 +8,10 @@
 #include <thread>
 #include <iostream> //timer
 #include <chrono> //timer
+#include <string.h> //strcpy
 
-#define SERIAL_PORT "/dev/cu.usbmodem14401"
+#define SERIAL_PORT "/dev/cu.usbmodem14201"
+// #define SERIAL_PORT "/dev/cu.usbmodem14401"
 
 int main(int argc, char *argv[])
 {
@@ -46,19 +48,27 @@ int main(int argc, char *argv[])
   ioctl(fd, TCSANOW, &tio); // ポートの設定を有効にする
 
   // 送受信処理ループ
+  char line_buf[256] = "";
   while (1)
   {
     len = read(fd, buf, sizeof(buf));
     if (0 < len)
     {
-      printf("start\n");
+      // printf("start\n");
       start = clock();
       for (i = 0; i < len; i++)
       {
-        // ここで更新
-        printf("%c", buf[i]);// printf("%02X", buf[i]);
+        char c(buf[i]);
+        if( c == '\n' ){
+          printf("%s\n",line_buf);
+          int num = atoi(line_buf);
+          strcpy(line_buf, "");    // 行バッファクリア
+        }else{            // 行バッファに1文字追加
+          int len = strlen(line_buf);
+          line_buf[len] = c;
+          line_buf[len+1] = '\0';
+        }
       }
-      printf("\nno data\n");
       end = clock();
       // printf ("%0.8f sec\n",((float) end - start)/CLOCKS_PER_SEC);
     }
