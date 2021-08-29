@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
       }
       printf("\nno data\n");
       end = clock();
-      printf ("%0.8f sec\n",((float) end - start)/CLOCKS_PER_SEC);
+      // printf ("%0.8f sec\n",((float) end - start)/CLOCKS_PER_SEC);
     }
     end = clock();
 
