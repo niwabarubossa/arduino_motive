@@ -9,6 +9,7 @@
 #include <iostream> //timer
 #include <chrono> //timer
 #include <string.h> //strcpy
+#include <cmath>
 
 #define SERIAL_PORT "/dev/cu.usbmodem14201"
 // #define SERIAL_PORT "/dev/cu.usbmodem14401"
@@ -62,6 +63,9 @@ int main(int argc, char *argv[])
         if( c == '\n' ){
           printf("%s\n",line_buf);
           int num = atoi(line_buf);
+
+
+
           strcpy(line_buf, "");    // 行バッファクリア
         }else{            // 行バッファに1文字追加
           int len = strlen(line_buf);
@@ -73,10 +77,27 @@ int main(int argc, char *argv[])
       // printf ("%0.8f sec\n",((float) end - start)/CLOCKS_PER_SEC);
     }
     end = clock();
-
     // write(fd, buf, len);　// エコーバック
   }
 
   close(fd); // デバイスのクローズ
   return 0;
+}
+
+//モーキャプのクウォータニオンをオイラー角に変換する
+double QuaternionToRoll(double q0,double q1,double q2,double q3){
+  double q0q0 = q0 * q0;
+  double q0q1 = q0 * q1;
+  double q0q2 = q0 * q2;
+  double q0q3 = q0 * q3;
+  double q1q1 = q1 * q1;
+  double q1q2 = q1 * q2;
+  double q1q3 = q1 * q3;
+  double q2q2 = q2 * q2;
+  double q2q3 = q2 * q3;
+  double q3q3 = q3 * q3;
+  double roll = atan2(2.0 * (q2q3 + q0q1), q0*q0 - q1q1 - q2q2 + q3q3);
+  double pitch = asin(2.0 * (q0q2 - q1q3));
+  double yaw = atan2(2.0 * (q1q2 + q0q3), q0q0 + q1q1 - q2q2 - q3q3);
+  return roll;
 }
