@@ -26,6 +26,7 @@
 #include <iostream> //timer
 #include <chrono> //timer
 #include <cmath>
+#define SERIAL_PORT "/dev/cu.usbmodem14201"
 //計算用アルゴリズム
 
 #ifndef _WIN32
@@ -238,58 +239,6 @@ int main( int argc, char* argv[] )
                     }
                 }
             }
-            else if(pDataDefs->arrDataDescriptions[i].type == Descriptor_Skeleton)
-            {
-                // Skeleton
-                sSkeletonDescription* pSK = pDataDefs->arrDataDescriptions[i].Data.SkeletonDescription;
-                printf("Skeleton Name : %s\n", pSK->szName);
-                printf("Skeleton ID : %d\n", pSK->skeletonID);
-                printf("RigidBody (Bone) Count : %d\n", pSK->nRigidBodies);
-                for(int j=0; j < pSK->nRigidBodies; j++)
-                {
-                    sRigidBodyDescription* pRB = &pSK->RigidBodies[j];
-                    printf("  RigidBody Name : %s\n", pRB->szName);
-                    printf("  RigidBody ID : %d\n", pRB->ID);
-                    printf("  RigidBody Parent ID : %d\n", pRB->parentID);
-                    printf("  Parent Offset : %3.2f,%3.2f,%3.2f\n", pRB->offsetx, pRB->offsety, pRB->offsetz);
-                }
-            }
-            else if(pDataDefs->arrDataDescriptions[i].type == Descriptor_ForcePlate)
-            {
-                // Force Plate
-                sForcePlateDescription* pFP = pDataDefs->arrDataDescriptions[i].Data.ForcePlateDescription;
-                printf("Force Plate ID : %d\n", pFP->ID);
-                printf("Force Plate Serial : %s\n", pFP->strSerialNo);
-                printf("Force Plate Width : %3.2f\n", pFP->fWidth);
-                printf("Force Plate Length : %3.2f\n", pFP->fLength);
-                printf("Force Plate Electrical Center Offset (%3.3f, %3.3f, %3.3f)\n", pFP->fOriginX,pFP->fOriginY, pFP->fOriginZ);
-                for(int iCorner=0; iCorner<4; iCorner++)
-                    printf("Force Plate Corner %d : (%3.4f, %3.4f, %3.4f)\n", iCorner, pFP->fCorners[iCorner][0],pFP->fCorners[iCorner][1],pFP->fCorners[iCorner][2]);
-                printf("Force Plate Type : %d\n", pFP->iPlateType);
-                printf("Force Plate Data Type : %d\n", pFP->iChannelDataType);
-                printf("Force Plate Channel Count : %d\n", pFP->nChannels);
-                for(int iChannel=0; iChannel<pFP->nChannels; iChannel++)
-                    printf("\tChannel %d : %s\n", iChannel, pFP->szChannelNames[iChannel]);
-            }
-            else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Device)
-            {
-                // Peripheral Device
-                sDeviceDescription* pDevice = pDataDefs->arrDataDescriptions[i].Data.DeviceDescription;
-                printf("Device Name : %s\n", pDevice->strName);
-                printf("Device Serial : %s\n", pDevice->strSerialNo);
-                printf("Device ID : %d\n", pDevice->ID);
-                printf("Device Channel Count : %d\n", pDevice->nChannels);
-                for (int iChannel = 0; iChannel < pDevice->nChannels; iChannel++)
-                    printf("\tChannel %d : %s\n", iChannel, pDevice->szChannelNames[iChannel]);
-            }
-            else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Camera)
-            {
-                // Camera
-                sCameraDescription* pCamera = pDataDefs->arrDataDescriptions[i].Data.CameraDescription;
-                printf("Camera Name : %s\n", pCamera->strName);
-                printf("Camera Position (%3.2f, %3.2f, %3.2f)\n", pCamera->x, pCamera->y, pCamera->z);
-                printf("Camera Orientation (%3.2f, %3.2f, %3.2f, %3.2f)\n", pCamera->qx, pCamera->qy, pCamera->qz, pCamera->qw);
-            }
             else
             {
                 printf("Unknown data type.\n");
@@ -432,6 +381,73 @@ void NATNET_CALLCONV ServerDiscoveredCallback( const sNatNetDiscoveredServer* pD
     }
 
     g_discoveredServers.push_back( *pDiscoveredServer );
+
+    //arduinoからのシリアル通信を受け取る部分
+　unsigned char msg[] = "serial port open...\n";
+  char buf[255]; // バッファ
+  int fd;             // ファイルディスクリプタ
+  struct termios tio; // シリアル通信設定
+  int baudRate = B38400; //ボーレート（bpsとは厳密には異なるが，シリアル通信では1回の復調で1bit）
+  int i,len,ret,size;
+
+  clock_t start = 0, end = 0;
+
+  // fd = open(SERIAL_PORT, O_RDWR | O_NDELAY | O_NOCTTY); // デバイスをオープンする
+  fd = open(SERIAL_PORT, O_RDWR);
+  if (fd < 0)
+  {
+    printf("open error\n");
+    return -1;
+  }
+
+  tio.c_cflag += CREAD;  // 受信有効
+  tio.c_cflag += CLOCAL; // ローカルライン（モデム制御なし）
+  tio.c_cflag += CS8;    // データビット:8bit
+  tio.c_cflag += 0;      // ストップビット:1bit
+  tio.c_cflag += 0;      // パリティ:None
+
+  cfsetispeed(&tio, baudRate);
+  cfsetospeed(&tio, baudRate);
+
+  cfmakeraw(&tio); // RAWモード
+
+  tcsetattr(fd, TCSANOW, &tio); // デバイスに設定を行う
+
+  ioctl(fd, TCSANOW, &tio); // ポートの設定を有効にする
+
+  // 送受信処理ループ
+  char line_buf[256] = "";
+  while (1)
+  {
+    len = read(fd, buf, sizeof(buf));
+    if (0 < len)
+    {
+      // printf("start\n");
+      start = clock();
+      for (i = 0; i < len; i++)
+      {
+        char c(buf[i]);
+        if( c == '\n' ){
+          printf("%s\n",line_buf);
+          int num = atoi(line_buf);
+
+
+
+          strcpy(line_buf, "");    // 行バッファクリア
+        }else{            // 行バッファに1文字追加
+          int len = strlen(line_buf);
+          line_buf[len] = c;
+          line_buf[len+1] = '\0';
+        }
+      }
+      end = clock();
+      // printf ("%0.8f sec\n",((float) end - start)/CLOCKS_PER_SEC);
+    }
+    end = clock();
+    // write(fd, buf, len);　// エコーバック
+  }
+
+  close(fd); // デバイスのクローズ
 }
 
 // Establish a NatNet Client connection
@@ -590,20 +606,6 @@ void NATNET_CALLCONV DataHandler(sFrameOfMocapData* data, void* pUserData)
 			data->RigidBodies[i].qy,
 			data->RigidBodies[i].qz,
 			data->RigidBodies[i].qw);
-	}
-
-	// Skeletons
-	printf("Skeletons [Count=%d]\n", data->nSkeletons);
-	for(i=0; i < data->nSkeletons; i++)
-	{
-		sSkeletonData skData = data->Skeletons[i];
-		printf("Skeleton [ID=%d  Bone count=%d]\n", skData.skeletonID, skData.nRigidBodies);
-		for(int j=0; j< skData.nRigidBodies; j++)
-		{
-			sRigidBodyData rbData = skData.RigidBodyData[j];
-			printf("Bone %d\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\n",
-				rbData.ID, rbData.x, rbData.y, rbData.z, rbData.qx, rbData.qy, rbData.qz, rbData.qw );
-		}
 	}
 
 	// labeled markers - this includes all markers (Active, Passive, and 'unlabeled' (markers with no asset but a PointCloud ID)
